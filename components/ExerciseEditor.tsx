@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { Save, Plus, Trash2, Image as ImageIcon, Sparkles, ChevronDown, ChevronUp, GripVertical, Video, ArrowLeft, Clock } from 'lucide-react';
+import { Save, Plus, Trash2, Image as ImageIcon, Sparkles, ChevronDown, ChevronUp, GripVertical, Video, ArrowLeft, Clock, FileJson, Upload, X } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import { Exercise, ExerciseStep, Variant, Category, Difficulty } from '../types';
 import { CATEGORIES, DIFFICULTIES } from '../constants';
@@ -27,7 +27,10 @@ const EMPTY_EXERCISE: Exercise = {
 export const ExerciseEditor: React.FC<ExerciseEditorProps> = ({ initialData, onSave, onCancel }) => {
   const [exercise, setExercise] = useState<Exercise>(initialData ? { ...initialData } : { ...EMPTY_EXERCISE, id: uuidv4(), createdAt: Date.now() });
   const [isGenerating, setIsGenerating] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [importText, setImportText] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const importFileInputRef = useRef<HTMLInputElement>(null);
 
   // --- Handlers for Main Exercise ---
 
@@ -53,6 +56,58 @@ export const ExerciseEditor: React.FC<ExerciseEditorProps> = ({ initialData, onS
       };
       reader.readAsDataURL(file);
     }
+  };
+
+  // --- Handlers for Import ---
+
+  const handleImportData = (data: any) => {
+      try {
+          // Basic validation to check if it looks like an exercise
+          if (typeof data !== 'object' || !data) throw new Error('Invalid JSON');
+          
+          // We merge the imported data into the current state
+          // We intentionally preserve the current ID if we are editing, or keep the new UUID if creating new
+          // unless the user specifically wants to restore a backup with ID. 
+          // For this "Template/Fill" use case, preserving the current session ID is usually safer.
+          const importedExercise: Exercise = {
+              ...EMPTY_EXERCISE, // defaults
+              ...data,
+              id: exercise.id, // Keep the current editor session ID
+              createdAt: exercise.createdAt
+          };
+
+          setExercise(importedExercise);
+          setShowImportModal(false);
+          setImportText('');
+      } catch (e) {
+          alert('Failed to import: Invalid Exercise Data');
+      }
+  };
+
+  const handleFileImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+          try {
+              const json = JSON.parse(ev.target?.result as string);
+              handleImportData(json);
+          } catch (e) {
+              alert('Error parsing JSON file');
+          }
+      };
+      reader.readAsText(file);
+  };
+
+  const handleTextImport = () => {
+      if (!importText.trim()) return;
+      try {
+          const json = JSON.parse(importText);
+          handleImportData(json);
+      } catch (e) {
+          alert('Invalid JSON syntax');
+      }
   };
 
   // --- Handlers for Steps ---
@@ -141,7 +196,78 @@ export const ExerciseEditor: React.FC<ExerciseEditorProps> = ({ initialData, onS
 
 
   return (
-    <div className="bg-gray-100 min-h-screen flex flex-col">
+    <div className="bg-gray-100 min-h-screen flex flex-col relative">
+       
+       {/* Import Modal */}
+       {showImportModal && (
+           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+               <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg overflow-hidden animate-fade-in">
+                   <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+                       <h3 className="font-bold text-gray-800 flex items-center gap-2">
+                           <FileJson className="w-5 h-5 text-indigo-600" /> Import Exercise Data
+                       </h3>
+                       <button onClick={() => setShowImportModal(false)} className="text-gray-400 hover:text-gray-600">
+                           <X className="w-5 h-5" />
+                       </button>
+                   </div>
+                   <div className="p-6 space-y-6">
+                       {/* File Upload Option */}
+                       <div 
+                           onClick={() => importFileInputRef.current?.click()}
+                           className="border-2 border-dashed border-indigo-100 bg-indigo-50/50 hover:bg-indigo-50 hover:border-indigo-300 rounded-xl p-8 text-center cursor-pointer transition-all group"
+                       >
+                           <div className="bg-white w-12 h-12 rounded-full shadow-sm flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform">
+                               <Upload className="w-6 h-6 text-indigo-600" />
+                           </div>
+                           <h4 className="font-bold text-gray-700">Upload JSON File</h4>
+                           <p className="text-xs text-gray-500 mt-1">Click to browse your device</p>
+                           <input 
+                               type="file" 
+                               ref={importFileInputRef} 
+                               className="hidden" 
+                               accept=".json,application/json" 
+                               onChange={handleFileImport}
+                           />
+                       </div>
+
+                       <div className="relative">
+                           <div className="absolute inset-0 flex items-center">
+                               <div className="w-full border-t border-gray-200"></div>
+                           </div>
+                           <div className="relative flex justify-center text-xs uppercase">
+                               <span className="bg-white px-2 text-gray-400 font-medium">Or paste text</span>
+                           </div>
+                       </div>
+
+                       {/* Text Area Option */}
+                       <div>
+                           <textarea
+                               value={importText}
+                               onChange={(e) => setImportText(e.target.value)}
+                               placeholder='Paste your JSON data here...'
+                               className="w-full h-32 p-3 bg-gray-50 border border-gray-200 rounded-lg text-xs font-mono text-gray-700 focus:ring-2 focus:ring-indigo-500 outline-none resize-none"
+                           />
+                       </div>
+                   </div>
+                   <div className="bg-gray-50 px-6 py-4 flex justify-end gap-3">
+                       <button 
+                           onClick={() => setShowImportModal(false)}
+                           className="px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-200 rounded-lg transition-colors"
+                       >
+                           Cancel
+                       </button>
+                       <button 
+                           onClick={handleTextImport}
+                           disabled={!importText.trim()}
+                           className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-sm disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                       >
+                           Import Data
+                       </button>
+                   </div>
+               </div>
+           </div>
+       )}
+
        {/* Sticky Header */}
        <div className="sticky top-0 z-30 bg-white border-b border-gray-200 px-4 py-4 flex items-center justify-between shadow-sm">
          <div className="flex items-center gap-3">
@@ -152,13 +278,22 @@ export const ExerciseEditor: React.FC<ExerciseEditorProps> = ({ initialData, onS
                 {initialData ? 'Edit Exercise' : 'New Exercise'}
             </h1>
          </div>
-         <button 
-           onClick={() => onSave(exercise)}
-           className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium flex items-center gap-2 transition-colors shadow-md hover:shadow-lg"
-         >
-           <Save className="w-4 h-4" />
-           Save
-         </button>
+         <div className="flex items-center gap-2">
+             <button
+               onClick={() => setShowImportModal(true)}
+               className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-2 rounded-lg font-medium flex items-center gap-2 transition-colors text-sm"
+             >
+                 <FileJson className="w-4 h-4" />
+                 <span className="hidden sm:inline">Import JSON</span>
+             </button>
+             <button 
+               onClick={() => onSave(exercise)}
+               className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium flex items-center gap-2 transition-colors shadow-md hover:shadow-lg"
+             >
+               <Save className="w-4 h-4" />
+               Save
+             </button>
+         </div>
        </div>
 
        <div className="max-w-4xl mx-auto w-full p-4 space-y-8 pb-20">

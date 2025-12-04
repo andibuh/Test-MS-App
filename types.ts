@@ -1,5 +1,7 @@
+
 export type Difficulty = 'Beginner' | 'Intermediate' | 'Advanced';
 export type Category = 'Strength' | 'Cardio' | 'Flexibility' | 'Balance' | 'HIIT';
+export type WorkoutCategory = 'Fitness' | 'Relaxation';
 
 export interface Variant {
   id: string;
@@ -30,4 +32,20 @@ export interface Exercise {
   createdAt: number;
 }
 
-export type ViewState = 'LIST' | 'EDITOR' | 'PLAYER';
+// Wrapper for an exercise inside a workout (allows duplicates with unique IDs)
+export interface WorkoutExercise extends Exercise {
+  uniqueId: string; 
+}
+
+export interface Workout {
+  id: string;
+  title: string;
+  description: string;
+  category: WorkoutCategory;
+  difficulty: Difficulty;
+  totalDuration: number;
+  exercises: WorkoutExercise[];
+  createdAt: number;
+}
+
+export type ViewState = 'LIST' | 'EDITOR' | 'PLAYER' | 'WORKOUT_BUILDER' | 'WORKOUT_SORTER';
